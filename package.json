@@ -1,0 +1,36 @@
+{
+  "name": "proshop-microservices",
+  "version": "2.0.0",
+  "type": "module",
+  "description": "ProShop E-commerce - Cloud-Native Microservices Architecture",
+  "scripts": {
+    "start:gateway": "cd services/api-gateway && node server.js",
+    "start:users": "cd services/user-service && node server.js",
+    "start:products": "cd services/product-service && node server.js",
+    "start:orders": "cd services/order-service && node server.js",
+    "start:frontend": "npm start --prefix frontend",
+    "dev:gateway": "cd services/api-gateway && npx nodemon server.js",
+    "dev:users": "cd services/user-service && npx nodemon server.js",
+    "dev:products": "cd services/product-service && npx nodemon server.js",
+    "dev:orders": "cd services/order-service && npx nodemon server.js",
+    "dev:frontend": "npm start --prefix frontend",
+    "dev": "concurrently \"npm run dev:gateway\" \"npm run dev:users\" \"npm run dev:products\" \"npm run dev:orders\" \"npm run dev:frontend\"",
+    "install:all": "npm install --prefix services/api-gateway && npm install --prefix services/user-service && npm install --prefix services/product-service && npm install --prefix services/order-service && npm install --prefix frontend",
+    "data:import": "cd services && node seeder.js",
+    "data:destroy": "cd services && node seeder.js -d",
+    "docker:up": "docker-compose up --build",
+    "docker:down": "docker-compose down",
+    "docker:prod": "docker-compose -f docker-compose.prod.yml up --build -d"
+  },
+  "author": "Brad Traversy",
+  "license": "MIT",
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "colors": "^1.4.0",
+    "dotenv": "^16.0.3",
+    "mongoose": "^7.0.1"
+  },
+  "devDependencies": {
+    "concurrently": "^7.6.0"
+  }
+}

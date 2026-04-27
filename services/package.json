@@ -1,0 +1,16 @@
+{
+  "name": "proshop-services",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Shared utilities for ProShop microservices (seeder, etc.)",
+  "scripts": {
+    "data:import": "node seeder.js",
+    "data:destroy": "node seeder.js -d"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "colors": "^1.4.0",
+    "dotenv": "^16.0.3",
+    "mongoose": "^7.0.1"
+  }
+}

@@ -1,0 +1,169 @@
+# ============================================================================
+# ProShop Microservices — Docker Compose Configuration
+# ============================================================================
+#
+# Architecture:
+#   Frontend → API Gateway → [User Service, Product Service, Order Service]
+#                                    ↕ Redis Event Bus ↕
+#
+# HIGH AVAILABILITY:
+#   restart: on-failure ensures crashed containers are restarted automatically.
+#   In production, Kubernetes would provide full HA with pod scheduling,
+#   rolling updates, and multi-node failover.
+#
+# SCALABILITY:
+#   Each service can be scaled independently (horizontal scaling):
+#     docker-compose up --scale product-service=3 --scale order-service=2
+#   All services are stateless — any instance can handle any request.
+#
+# LOOSE COUPLING:
+#   Services use Docker service names (e.g., http://user-service:5001) for
+#   inter-service communication instead of hardcoded IPs or direct DB access.
+#
+# Usage:
+#   docker-compose up --build        # Start all services
+#   docker-compose down              # Stop all services
+# ============================================================================
+
+services:
+
+  # ─── Redis (Event Bus for Async Communication) ───────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: proshop_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: on-failure
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─── User Service (Port 5001) ────────────────────────────────────────────
+  user-service:
+    build:
+      context: ./services/user-service
+      dockerfile: Dockerfile
+    container_name: proshop_user_service
+    env_file:
+      - .env
+    environment:
+      - PORT=5001
+      - NODE_ENV=development
+      - SERVICE_NAME=user-service
+    ports:
+      - "5001:5001"
+    restart: on-failure
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:5001/health').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+  # ─── Product Service (Port 5002) ─────────────────────────────────────────
+  product-service:
+    build:
+      context: ./services/product-service
+      dockerfile: Dockerfile
+    container_name: proshop_product_service
+    env_file:
+      - .env
+    environment:
+      - PORT=5002
+      - NODE_ENV=development
+      - SERVICE_NAME=product-service
+      - REDIS_URL=redis://redis:6379
+      - USER_SERVICE_URL=http://user-service:5001
+    ports:
+      - "5002:5002"
+    volumes:
+      - uploads_data:/app/uploads
+    depends_on:
+      redis:
+        condition: service_healthy
+      user-service:
+        condition: service_started
+    restart: on-failure
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:5002/health').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+  # ─── Order Service (Port 5003) ───────────────────────────────────────────
+  order-service:
+    build:
+      context: ./services/order-service
+      dockerfile: Dockerfile
+    container_name: proshop_order_service
+    env_file:
+      - .env
+    environment:
+      - PORT=5003
+      - NODE_ENV=development
+      - SERVICE_NAME=order-service
+      - REDIS_URL=redis://redis:6379
+      - USER_SERVICE_URL=http://user-service:5001
+      - PRODUCT_SERVICE_URL=http://product-service:5002
+    ports:
+      - "5003:5003"
+    depends_on:
+      redis:
+        condition: service_healthy
+      user-service:
+        condition: service_started
+      product-service:
+        condition: service_started
+    restart: on-failure
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:5003/health').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+  # ─── API Gateway (Port 8000) ─────────────────────────────────────────────
+  api-gateway:
+    build:
+      context: ./services/api-gateway
+      dockerfile: Dockerfile
+    container_name: proshop_api_gateway
+    environment:
+      - PORT=8000
+      - NODE_ENV=development
+      - SERVICE_NAME=api-gateway
+      - USER_SERVICE_URL=http://user-service:5001
+      - PRODUCT_SERVICE_URL=http://product-service:5002
+      - ORDER_SERVICE_URL=http://order-service:5003
+      - FRONTEND_URL=http://localhost:3000
+    ports:
+      - "8000:8000"
+    depends_on:
+      - user-service
+      - product-service
+      - order-service
+    restart: on-failure
+
+  # ─── Frontend (Port 3000) ────────────────────────────────────────────────
+  frontend:
+    build: ./frontend
+    container_name: proshop_frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - CHOKIDAR_USEPOLLING=true
+      - WATCHPACK_POLLING=true
+    depends_on:
+      - api-gateway
+    stdin_open: true
+    tty: true
+
+# ─── Volumes ─────────────────────────────────────────────────────────────────
+volumes:
+  redis_data:
+  uploads_data:
