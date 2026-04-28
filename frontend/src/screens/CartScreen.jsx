@@ -34,6 +34,12 @@ const CartScreen = () => {
     navigate('/login?redirect=/shipping');
   };
 
+  const getSafeStockCount = (value) => {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed) || parsed < 0) return 0;
+    return Math.floor(parsed);
+  };
+
   return (
     <Row>
       <Col md={8}>
@@ -55,6 +61,9 @@ const CartScreen = () => {
                   </Col>
                   <Col md={2}>${item.price}</Col>
                   <Col md={2}>
+                    {(() => {
+                      const safeStockCount = getSafeStockCount(item.countInStock);
+                      return (
                     <Form.Control
                       as='select'
                       value={item.qty}
@@ -62,12 +71,14 @@ const CartScreen = () => {
                         addToCartHandler(item, Number(e.target.value))
                       }
                     >
-                      {[...Array(item.countInStock).keys()].map((x) => (
+                      {[...Array(safeStockCount).keys()].map((x) => (
                         <option key={x + 1} value={x + 1}>
                           {x + 1}
                         </option>
                       ))}
                     </Form.Control>
+                      );
+                    })()}
                   </Col>
                   <Col md={2}>
                     <Button
@@ -89,12 +100,16 @@ const CartScreen = () => {
           <ListGroup variant='flush'>
             <ListGroup.Item>
               <h2>
-                Subtotal ({cartItems.reduce((acc, item) => acc + item.qty, 0)})
+                Subtotal ({cartItems.reduce((acc, item) => acc + (Number(item.qty) || 0), 0)})
                 items
               </h2>
               $
               {cartItems
-                .reduce((acc, item) => acc + item.qty * item.price, 0)
+                .reduce(
+                  (acc, item) =>
+                    acc + (Number(item.qty) || 0) * (Number(item.price) || 0),
+                  0
+                )
                 .toFixed(2)}
             </ListGroup.Item>
             <ListGroup.Item>

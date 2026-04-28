@@ -49,6 +49,12 @@ const ProductScreen = () => {
   const [createReview, { isLoading: loadingProductReview }] =
     useCreateReviewMutation();
 
+  const getSafeStockCount = (value) => {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed) || parsed < 0) return 0;
+    return Math.floor(parsed);
+  };
+
   const submitHandler = async (e) => {
     e.preventDefault();
 
@@ -121,7 +127,7 @@ const ProductScreen = () => {
                   </ListGroup.Item>
 
                   {/* Qty Select */}
-                  {product.countInStock > 0 && (
+                  {getSafeStockCount(product.countInStock) > 0 && (
                     <ListGroup.Item>
                       <Row>
                         <Col>Qty</Col>
@@ -131,7 +137,7 @@ const ProductScreen = () => {
                             value={qty}
                             onChange={(e) => setQty(Number(e.target.value))}
                           >
-                            {[...Array(product.countInStock).keys()].map(
+                            {[...Array(getSafeStockCount(product.countInStock)).keys()].map(
                               (x) => (
                                 <option key={x + 1} value={x + 1}>
                                   {x + 1}
