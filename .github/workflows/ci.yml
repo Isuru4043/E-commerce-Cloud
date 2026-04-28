@@ -65,6 +65,8 @@ jobs:
         with:
           context: ./frontend
           file: ./frontend/Dockerfile
+          build-args: |
+            REACT_APP_API_URL=${{ secrets.REACT_APP_API_URL || vars.REACT_APP_API_URL }}
           push: true
           tags: ${{ secrets.ACR_LOGIN_SERVER }}/frontend:latest
 
