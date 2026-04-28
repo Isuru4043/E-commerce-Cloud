@@ -1,6 +1,7 @@
 name: CI - Build and Push Images
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - Dev1
