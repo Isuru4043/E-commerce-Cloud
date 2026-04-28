@@ -1,0 +1,81 @@
+name: CD - Deploy to Azure Container Apps
+
+on:
+  workflow_run:
+    workflows: ["CI - Build and Push Images"]
+    types:
+      - completed
+    branches:
+      - Dev1
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Install Azure Container Apps CLI extension
+        run: |
+          az extension add --name containerapp --upgrade
+
+      - name: Update user-service
+        run: |
+          az containerapp update \
+            --name user-service \
+            --resource-group cloud-ecommerce \
+            --image ${{ secrets.ACR_LOGIN_SERVER }}/user-service:latest \
+            --set-env-vars USER_MONGO_URI="${{ secrets.USER_MONGO_URI }}" JWT_SECRET="${{ secrets.JWT_SECRET }}"
+
+      - name: Update product-service
+        run: |
+          az containerapp update \
+            --name product-service \
+            --resource-group cloud-ecommerce \
+            --image ${{ secrets.ACR_LOGIN_SERVER }}/product-service:latest \
+            --set-env-vars PRODUCT_MONGO_URI="${{ secrets.PRODUCT_MONGO_URI }}" JWT_SECRET="${{ secrets.JWT_SECRET }}" REDIS_URL="${{ secrets.REDIS_URL }}" USER_SERVICE_URL="${{ secrets.USER_SERVICE_URL }}" CLOUDINARY_CLOUD_NAME="${{ secrets.CLOUDINARY_CLOUD_NAME }}" CLOUDINARY_API_KEY="${{ secrets.CLOUDINARY_API_KEY }}" CLOUDINARY_API_SECRET="${{ secrets.CLOUDINARY_API_SECRET }}"
+
+      - name: Update order-service
+        run: |
+          az containerapp update \
+            --name order-service \
+            --resource-group cloud-ecommerce \
+            --image ${{ secrets.ACR_LOGIN_SERVER }}/order-service:latest \
+            --set-env-vars ORDER_MONGO_URI="${{ secrets.ORDER_MONGO_URI }}" JWT_SECRET="${{ secrets.JWT_SECRET }}" REDIS_URL="${{ secrets.REDIS_URL }}" USER_SERVICE_URL="${{ secrets.USER_SERVICE_URL }}" PRODUCT_SERVICE_URL="${{ secrets.PRODUCT_SERVICE_URL }}"
+
+      - name: Update api-gateway
+        run: |
+          az containerapp update \
+            --name api-gateway \
+            --resource-group cloud-ecommerce \
+            --image ${{ secrets.ACR_LOGIN_SERVER }}/api-gateway:latest \
+            --set-env-vars JWT_SECRET="${{ secrets.JWT_SECRET }}" USER_SERVICE_URL="${{ secrets.USER_SERVICE_URL }}" PRODUCT_SERVICE_URL="${{ secrets.PRODUCT_SERVICE_URL }}" ORDER_SERVICE_URL="${{ secrets.ORDER_SERVICE_URL }}" FRONTEND_URL="${{ secrets.FRONTEND_URL }}"
+
+      - name: Update frontend
+        run: |
+          az containerapp update \
+            --name frontend \
+            --resource-group cloud-ecommerce \
+            --image ${{ secrets.ACR_LOGIN_SERVER }}/frontend:latest
+
+      - name: Verify deployments
+        run: |
+          echo "Checking deployment status..."
+          az containerapp list --resource-group cloud-ecommerce --query "[].{name:name, status:properties.runningStatus, provisioning:properties.provisioningState}" -o table
+
+      - name: Test gateway health endpoint
+        run: |
+          GATEWAY_URL="https://api-gateway.thankfulmushroom-7e1e12d4.southeastasia.azurecontainerapps.io"
+          echo "Testing gateway health at $GATEWAY_URL/health"
+          curl -s -o /dev/null -w "HTTP Status: %{http_code}\n" "$GATEWAY_URL/health" || echo "Health check failed or endpoint not ready"
+
+      - name: Azure Logout
+        run: az logout
