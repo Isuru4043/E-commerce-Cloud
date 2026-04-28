@@ -65,6 +65,7 @@ jobs:
             --name frontend \
             --resource-group cloud-ecommerce \
             --image ${{ secrets.ACR_LOGIN_SERVER }}/frontend:latest \
+            --revision-suffix "v$(date +%Y%m%d%H%M%S)" \
             --set-env-vars HOST=0.0.0.0 DANGEROUSLY_DISABLE_HOST_CHECK=true
 
       - name: Verify deployments
