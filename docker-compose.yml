@@ -49,7 +49,7 @@ services:
       dockerfile: Dockerfile
     container_name: proshop_user_service
     env_file:
-      - .env
+      - ./services/user-service/.env.user
     environment:
       - PORT=5001
       - NODE_ENV=development
@@ -71,7 +71,7 @@ services:
       dockerfile: Dockerfile
     container_name: proshop_product_service
     env_file:
-      - .env
+      - ./services/product-service/.env.product
     environment:
       - PORT=5002
       - NODE_ENV=development
@@ -102,7 +102,7 @@ services:
       dockerfile: Dockerfile
     container_name: proshop_order_service
     env_file:
-      - .env
+      - ./services/order-service/.env.order
     environment:
       - PORT=5003
       - NODE_ENV=development

@@ -1,19 +1,15 @@
 import path from 'path';
 import express from 'express';
 import multer from 'multer';
+import { v2 as cloudinary } from 'cloudinary';
+import { Readable } from 'stream';
 
 const router = express.Router();
 
-const storage = multer.diskStorage({
-  destination(req, file, cb) {
-    cb(null, 'uploads/');
-  },
-  filename(req, file, cb) {
-    cb(
-      null,
-      `${file.fieldname}-${Date.now()}${path.extname(file.originalname)}`
-    );
-  },
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
 function fileFilter(req, file, cb) {
@@ -30,7 +26,8 @@ function fileFilter(req, file, cb) {
   }
 }
 
-const upload = multer({ storage, fileFilter });
+const storage = multer.memoryStorage();
+const upload = multer({ storage, fileFilter, limits: { fileSize: 5 * 1024 * 1024 } });
 const uploadSingleImage = upload.single('image');
 
 router.post('/', (req, res) => {
@@ -39,10 +36,30 @@ router.post('/', (req, res) => {
       return res.status(400).send({ message: err.message });
     }
 
-    res.status(200).send({
-      message: 'Image uploaded successfully',
-      image: `/${req.file.path}`,
-    });
+    if (!req.file) {
+      return res.status(400).send({ message: 'No image file provided' });
+    }
+
+    const uploadStream = cloudinary.uploader.upload_stream(
+      {
+        folder: 'proshop-products',
+        allowed_formats: ['jpg', 'jpeg', 'png', 'webp'],
+        resource_type: 'image',
+      },
+      (error, result) => {
+        if (error) {
+          return res.status(500).send({ message: error.message });
+        }
+
+        res.status(200).send({
+          message: 'Image uploaded successfully',
+          image: result.secure_url,
+        });
+      }
+    );
+
+    const bufferStream = Readable.from(req.file.buffer);
+    bufferStream.pipe(uploadStream);
   });
 });
 
