@@ -5,7 +5,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useLogoutMutation } from '../slices/usersApiSlice';
 import { logout } from '../slices/authSlice';
 import SearchBox from './SearchBox';
-import logo from '../assets/logo.png';
+import logo from '../assets/logo-2.png';
 import { resetCart } from '../slices/cartSlice';
 
 const Header = () => {
@@ -35,7 +35,7 @@ const Header = () => {
       <Navbar bg='primary' variant='dark' expand='lg' collapseOnSelect>
         <Container>
           <Navbar.Brand as={Link} to='/'>
-            <img src={logo} alt='SmartCarts' />
+            <img className='navbar-logo' src={logo} alt='SmartCarts' />
             SmartCarts
           </Navbar.Brand>
           <Navbar.Toggle aria-controls='basic-navbar-nav' />
