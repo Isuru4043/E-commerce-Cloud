@@ -16,7 +16,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v4
 
       - name: Azure Login
         uses: azure/login@v2
@@ -64,8 +64,7 @@ jobs:
           az containerapp update \
             --name frontend \
             --resource-group cloud-ecommerce \
-            --image ${{ secrets.ACR_LOGIN_SERVER }}/frontend:latest
-            \
+            --image ${{ secrets.ACR_LOGIN_SERVER }}/frontend:latest \
             --set-env-vars HOST=0.0.0.0 DANGEROUSLY_DISABLE_HOST_CHECK=true
 
       - name: Verify deployments
@@ -75,9 +74,14 @@ jobs:
 
       - name: Test gateway health endpoint
         run: |
-          GATEWAY_URL="https://api-gateway.thankfulmushroom-7e1e12d4.southeastasia.azurecontainerapps.io"
+          GATEWAY_FQDN=$(az containerapp show \
+            --name api-gateway \
+            --resource-group cloud-ecommerce \
+            --query "properties.configuration.ingress.fqdn" -o tsv)
+          GATEWAY_URL="https://$GATEWAY_FQDN"
           echo "Testing gateway health at $GATEWAY_URL/health"
           curl -s -o /dev/null -w "HTTP Status: %{http_code}\n" "$GATEWAY_URL/health" || echo "Health check failed or endpoint not ready"
 
       - name: Azure Logout
+        if: always()
         run: az logout
