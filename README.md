@@ -1,372 +1,370 @@
-# ProShop — Cloud-Native Microservices E-Commerce Platform
+# SmartCarts Microservices E-Commerce Platform
 
-> A MERN stack e-commerce application refactored from a monolithic architecture
-> into a cloud-native microservices system. Built for an academic cloud computing
-> project demonstrating microservices decomposition, inter-service communication,
-> event-driven architecture, containerization, and scalability.
+SmartCarts is a cloud-native e-commerce application built with a MERN stack split into microservices. The system uses a React frontend, an API gateway, separate backend services for users, products, and orders, Redis for event messaging, MongoDB Atlas for persistence, Cloudinary for product images, and Azure Container Apps for deployment.
 
----
+## What’s Included
 
-## Table of Contents
+- React frontend with Redux Toolkit and RTK Query
+- API gateway with routing, request logging, rate limiting, and CORS
+- User service for authentication and admin/user management
+- Product service for catalog, search, stock, image uploads, and reviews
+- Order service for checkout, order management, and service-to-service price verification
+- Redis pub/sub for asynchronous stock updates after order placement
+- Azure Container Registry and Azure Container Apps deployment pipeline
 
-- [System Architecture](#system-architecture)
-- [Services Overview](#services-overview)
-- [Project Structure](#project-structure)
-- [How to Run](#how-to-run)
-- [Communication Methods](#communication-methods)
-- [Event-Driven Architecture](#event-driven-architecture)
-- [Security](#security)
-- [Cloud-Native Design Patterns](#cloud-native-design-patterns)
-- [Ports & Services](#ports--services)
-- [Environment Variables](#environment-variables)
-- [API Endpoints](#api-endpoints)
+## Feature Highlights
 
----
+- User registration, login, logout, and profile management
+- Admin and customer role separation
+- Product listing, search, pagination, product details, and reviews
+- Cart management and checkout flow
+- Order creation, order history, and admin order management
+- Product image upload with Cloudinary
+- Redis-backed event flow for asynchronous stock updates
+- Production-ready frontend build served through nginx
 
-## System Architecture
-
-```
-                       ┌──────────────┐
-                       │   Frontend   │
-                       │  (React.js)  │
-                       │  Port: 3000  │
-                       └──────┬───────┘
-                              │
-                   ┌──────────▼──────────┐
-                   │    API Gateway      │
-                   │    Port: 8000       │
-                   │  ┌───────────────┐  │
-                   │  │  Rate Limiter │  │
-                   │  │  Request IDs  │  │
-                   │  │  CORS / Logs  │  │
-                   │  └───────────────┘  │
-                   └──┬───────┬────────┬─┘
-                      │       │        │
-         ┌────────────┘       │        └────────────┐
-         │                    │                     │
-  ┌──────▼──────┐     ┌──────▼──────┐      ┌───────▼─────┐
-  │    User     │     │   Product   │      │    Order    │
-  │   Service   │     │   Service   │      │   Service   │
-  │  Port: 5001 │     │  Port: 5002 │      │  Port: 5003 │
-  └──────┬──────┘     └──┬─────┬────┘      └──┬────┬─────┘
-         │               │     │               │    │
-         │               │     │       ┌───────┘    │
-         │               │     │       │            │
-  ┌──────▼───────────────▼─┐   │  ┌────▼────────────▼──┐
-  │       MongoDB          │   │  │   Redis Event Bus  │
-  │  (Shared Instance)     │   │  │    Port: 6379      │
-  │                        │   │  │                    │
-  │  ┌──────┐ ┌────────┐  │   │  │  ORDER_PLACED ──►  │
-  │  │users │ │products│  │   │  │  (Pub/Sub Channel)  │
-  │  └──────┘ └────────┘  │   │  └────────────────────┘
-  │  ┌──────┐              │   │
-  │  │orders│              │   │
-  │  └──────┘              │   │
-  └────────────────────────┘   │
-                               │
-              Subscribe ◄──────┘
-         (Update Stock Counts)
-```
-
----
-
-## Services Overview
-
-| Service | Port | Role |
-|---------|------|------|
-| **API Gateway** | 8000 | Routes requests, rate limiting, request IDs, CORS |
-| **User Service** | 5001 | Authentication (JWT), user CRUD, role management |
-| **Product Service** | 5002 | Product catalog, search, image uploads, stock updates |
-| **Order Service** | 5003 | Order lifecycle, simulated payment, delivery tracking |
-| **Redis** | 6379 | Event bus for async communication (Pub/Sub) |
-| **MongoDB** | — | Shared database with logically separated collections |
-| **Frontend** | 3000 | React SPA with Redux Toolkit |
-
----
-
-## Project Structure
+## Architecture
 
 ```
-ProShop/
+┌──────────────────────────────────────────────────────────┐
+│                     Browser / User                        │
+└───────────────────────┬──────────────────────────────────┘
+                        │
+                        ▼
+        ┌───────────────────────────────┐
+        │   Frontend (React)             │
+        │   Port 3000                    │
+        │   nginx in production          │
+        └───────────┬─────────────────────┘
+                    │ (Sends API Calls)
+                    ▼
+    ┌──────────────────────────────────┐
+    │   API Gateway (Port 8000)         │
+    │ ┌────────────────────────────────┤
+    │ │ • CORS                          │
+    │ │ • Rate Limiting                 │
+    │ │ • Auth Token Forwarding         │
+    │ │ • Request Logging               │
+    └─┼────────────────────────────────┘
+      │
+      ├──► /api/users ────────► User Service (Port 5001)
+      │                       - Login & Register
+      │                       - JWT Auth
+      │                       - Admin Checks
+      │
+      ├──► /api/products ────► Product Service (Port 5002)
+      │                       - Catalog & Search
+      │                       - Reviews & Ratings
+      │                       - Image Upload (Cloudinary)
+      │                       - Stock Management
+      │
+      └──► /api/orders ──────► Order Service (Port 5003)
+                              - Checkout
+                              - Order Management
+                              - Pricing Calculations
+                              - Publishes Events to Redis
+
+
+┌──────────────────────────────────────────────────────────┐
+│              Data & Message Layer                         │
+├──────────────────────────────────────────────────────────┤
+│                                                           │
+│  MongoDB Atlas (3 Separate Databases)                    │
+│  • user_db         → User service data                   │
+│  • product_db      → Product service data                │
+│  • order_db        → Order service data                  │
+│                                                           │
+│  Redis (Port 6379) → Message Bus (Pub/Sub)              │
+│  • ORDER_PLACED event → Product service updates stock   │
+│                                                           │
+│  Cloudinary → Image Storage & Delivery                  │
+│                                                           │
+└──────────────────────────────────────────────────────────┘
+```
+
+## Service Overview
+
+### Backend Services
+
+| Service | Port | Technology | Key Functions |
+|:---|:---:|:---|:---|
+| **User Service** | 5001 | Express.js + MongoDB | Authentication, JWT, profile mgmt, admin checks |
+| **Product Service** | 5002 | Express.js + MongoDB | Catalog, search, reviews, uploads, stock |
+| **Order Service** | 5003 | Express.js + MongoDB | Checkout, orders, pricing, totals |
+| **API Gateway** | 8000 | Express.js | Routes requests, CORS, auth forwarding, rate limit |
+
+### Frontend & Infrastructure
+
+| Component | Port | Technology | Purpose |
+|:---|:---:|:---|:---|
+| **Frontend** | 3000 | React + Redux Toolkit | User interface, cart, checkout, admin panel |
+| **Redis** | 6379 | Redis Pub/Sub | Async event messaging (ORDER_PLACED → stock updates) |
+| **MongoDB Atlas** | — | MongoDB | 3 databases: user_db, product_db, order_db |
+| **Cloudinary** | — | CDN | Image storage and delivery |
+
+## Data & Integrations
+
+- MongoDB Atlas is split into three logical databases:
+  - `user_db`
+  - `product_db`
+  - `order_db`
+- Product images are uploaded to Cloudinary.
+- JWT auth is stored in an HTTP-only cookie and forwarded through the gateway.
+- Redis is used for `ORDER_PLACED` events so the product service can update stock asynchronously.
+
+## Detailed Service Responsibilities
+
+### API Gateway
+
+- Single entry point for the frontend
+- Proxies `/api/users`, `/api/products`, `/api/orders`, and `/api/upload`
+- Adds CORS, request IDs, logging, and rate limiting
+- Provides `/api/health` for aggregated health checks
+
+### User Service
+
+- Handles registration and authentication
+- Issues JWT cookies
+- Exposes profile and admin/user endpoints
+- Supports admin authorization checks used by other services
+
+### Product Service
+
+- Manages product catalog data
+- Supports keyword search and pagination
+- Handles product creation, editing, and deletion for admins
+- Uploads images to Cloudinary
+- Receives order placement events and updates stock
+
+### Order Service
+
+- Creates and manages orders
+- Verifies product prices through the product service
+- Calculates totals, shipping, tax, and grand total
+- Publishes `ORDER_PLACED` events through Redis
+- Uses synchronous HTTP calls for user/product lookups instead of direct database access
+
+## Loose Coupling
+
+The services are intentionally decoupled so they do not read each other’s databases directly.
+
+- The order service calls the product service to verify product data and prices.
+- The order service calls the user service for user-related checks when needed.
+- The product service reacts to `ORDER_PLACED` events through Redis instead of being called directly for stock updates.
+- The frontend only talks to the API gateway, not to individual services.
+
+This keeps the system easier to scale, easier to test, and safer to change service by service.
+
+### Frontend
+
+- React SPA built with Create React App
+- Uses Redux Toolkit and RTK Query for state/data access
+- In production, the app is compiled and served by nginx
+
+## Repository Structure
+
+
+.
+├── frontend/                 # React app
 ├── services/
-│   ├── api-gateway/              # API Gateway (Edge Service)
-│   │   ├── server.js             # Proxy routing, rate limiting, request IDs
-│   │   ├── package.json
-│   │   └── Dockerfile
-│   │
-│   ├── user-service/             # User Microservice
-│   │   ├── config/db.js          # MongoDB connection
-│   │   ├── controllers/          # Thin HTTP handlers
-│   │   ├── services/             # Business logic layer
-│   │   ├── middleware/           # Auth, validation, error handling
-│   │   ├── models/               # Mongoose schema + indexes
-│   │   ├── routes/               # Express route definitions
-│   │   ├── utils/                # Logger, token generation
-│   │   ├── server.js
-│   │   └── Dockerfile
-│   │
-│   ├── product-service/          # Product Microservice
-│   │   ├── controllers/          # Thin HTTP handlers
-│   │   ├── services/             # Business logic layer
-│   │   ├── events/               # Redis Pub/Sub (eventBus + subscriber)
-│   │   ├── middleware/           # Auth, validation, error handling
-│   │   ├── models/               # Schema + text/rating indexes
-│   │   ├── routes/               # Product + upload routes
-│   │   ├── utils/                # Logger, HTTP client (retry/timeout)
-│   │   ├── server.js
-│   │   └── Dockerfile
-│   │
-│   ├── order-service/            # Order Microservice
-│   │   ├── controllers/          # Thin HTTP handlers
-│   │   ├── services/             # Business logic + inter-service calls
-│   │   ├── events/               # Redis publisher
-│   │   ├── middleware/           # Auth, validation, error handling
-│   │   ├── models/               # Schema + user/payment indexes
-│   │   ├── routes/               # Order routes
-│   │   ├── utils/                # Logger, HTTP client, price calculator
-│   │   ├── server.js
-│   │   └── Dockerfile
-│   │
-│   └── seeder.js                 # Database seeder
-│
-├── frontend/                     # React Frontend
-├── docker-compose.yml            # Container orchestration
-├── .env                          # Environment variables
+│   ├── api-gateway/          # Gateway service
+│   ├── user-service/         # Authentication and users
+│   ├── product-service/      # Products, uploads, reviews
+│   ├── order-service/        # Orders and checkout
+│   └── seeder.js             # Seed / cleanup script
+├── docker-compose.yml        # Local container stack
+├── example.env               # Example root env file
 └── README.md
-```
 
----
 
-## How to Run
+## Requirements
 
-### Using Docker Compose (Recommended)
+- Node.js 18+ recommended
+- Docker and Docker Compose
+- MongoDB Atlas account or another MongoDB deployment
+- Redis instance for local development or Docker Compose
+- Cloudinary account for image uploads
 
-```bash
-# 1. Clone the project
-git clone <repository-url>
-cd ProShop
+## Common API Endpoints
 
-# 2. Configure environment
-cp example.env .env
-# Edit .env with your MongoDB URI and JWT secret
+| Method | Endpoint | Description |
+| --- | --- | --- |
+| `POST` | `/api/users/auth` | Login |
+| `POST` | `/api/users` | Register user |
+| `GET` | `/api/users/profile` | Current user profile |
+| `GET` | `/api/products` | List products |
+| `GET` | `/api/products/top` | Top rated products |
+| `POST` | `/api/products` | Create product (admin) |
+| `PUT` | `/api/products/:id` | Update product (admin) |
+| `POST` | `/api/products/:id/reviews` | Create product review |
+| `GET` | `/api/orders/:id` | Fetch order by ID |
+| `POST` | `/api/orders` | Create order |
+| `GET` | `/api/health` | Gateway health check |
 
-# 3. Build and start all services
-docker-compose up --build
+## Environment Setup
 
-# 4. Access the application
-#    Frontend:    http://localhost:3000
-#    API Gateway: http://localhost:8000
-#    Health:      http://localhost:8000/api/health
+This repository keeps secrets out of git. Use the example file as a starting point and create your own local env files.
 
-# 5. Stop all services
-docker-compose down
-```
+Suggested files:
 
-### Scaling Services
+- `example.env` for root-level values
+- `services/user-service/.env.user`
+- `services/product-service/.env.product`
+- `services/order-service/.env.order`
+- `services/api-gateway/.env` for local gateway overrides
 
-```bash
-# Scale specific services independently (horizontal scaling)
-docker-compose up --scale product-service=3 --scale order-service=2
-```
+Important variables used by the services:
 
-### Default Credentials
+- `USER_MONGO_URI`
+- `PRODUCT_MONGO_URI`
+- `ORDER_MONGO_URI`
+- `JWT_SECRET`
+- `REDIS_URL`
+- `USER_SERVICE_URL`
+- `PRODUCT_SERVICE_URL`
+- `ORDER_SERVICE_URL`
+- `FRONTEND_URL`
+- `CLOUDINARY_CLOUD_NAME`
+- `CLOUDINARY_API_KEY`
+- `CLOUDINARY_API_SECRET`
+- `REACT_APP_API_URL` for frontend production builds
 
-| Role  | Email           | Password |
-|-------|-----------------|----------|
-| Admin | admin@email.com | 123456   |
-| User  | john@email.com  | 123456   |
+### Root Environment Example
 
----
+The repository includes `example.env` as a starting point for local development. It should be copied to your own `.env` file and edited with real values.
 
-## Communication Methods
+### Service Environment Files
 
-### 1. Synchronous — REST API Calls
+- `services/user-service/.env.user` sets the user service port and MongoDB URI
+- `services/product-service/.env.product` sets the product service port, MongoDB URI, Redis URL, user service URL, and Cloudinary values
+- `services/order-service/.env.order` sets the order service port, MongoDB URI, Redis URL, and service URLs
+- `services/api-gateway/.env` is used for local gateway overrides during development
 
-Services call each other via HTTP when they need an immediate response.
+## Running Locally with Docker
 
-| Caller | Target | Purpose |
-|--------|--------|---------|
-| Order Service → Product Service | `GET /api/products/:id` | Verify product prices |
-| Order Service → User Service | `GET /api/users/:id` | Fetch user details |
-| Product/Order → User Service | `GET /api/users/profile` | Admin authorization |
-
-All inter-service calls use **retry logic (3 attempts)** with **exponential backoff** and a **5-second timeout** to handle transient failures gracefully.
-
-### 2. Asynchronous — Redis Pub/Sub Events
-
-For operations that don't need an immediate response, services publish events.
-
-```
-Order Created → ORDER_PLACED event → Redis → Product Service → Update Stock
-```
-
-**Why async?** The user gets a fast response; stock updates happen in the background.
-
----
-
-## Event-Driven Architecture
-
-### ORDER_PLACED Event Flow
-
-```
-1. Client sends POST /api/orders
-2. Order Service verifies prices via Product Service (sync REST)
-3. Order Service saves order to MongoDB
-4. Order Service publishes ORDER_PLACED event to Redis
-5. Product Service receives event and updates stock asynchronously
-```
-
-### Event Schema
-
-```json
-{
-  "eventType": "ORDER_PLACED",
-  "eventId": "evt_1714200000_a1b2c3d4e",
-  "source": "order-service",
-  "timestamp": "2024-04-27T07:00:00.000Z",
-  "data": {
-    "orderId": "663d...",
-    "userId": "663c...",
-    "orderItems": [
-      { "product": "663b...", "qty": 2, "name": "iPhone 13 Pro" }
-    ],
-    "totalPrice": 1199.98
-  }
-}
-```
-
-### Benefits of Async Communication
-
-| Benefit | Explanation |
-|---------|-------------|
-| **Loose Coupling** | Order Service doesn't wait for stock updates |
-| **Fault Tolerance** | If Product Service is down, orders still work |
-| **Scalability** | Multiple instances can process events |
-
----
-
-## Security
-
-### Authentication Flow
-
-```
-1. User logs in → POST /api/users/auth
-2. User Service generates JWT → stored as HTTP-only cookie
-3. Every request → cookie is forwarded automatically
-4. Each service verifies JWT locally using shared JWT_SECRET
-5. Admin routes → User Service checks isAdmin flag
-```
-
-### Security Features
-
-| Feature | Description |
-|---------|-------------|
-| **HTTP-Only Cookies** | JWT stored in cookies that JavaScript cannot access (prevents XSS) |
-| **Input Validation** | Dedicated middleware validates all inputs before processing |
-| **Server-Side Price Verification** | Order Service fetches real prices from Product Service |
-| **Password Hashing** | bcrypt with 10 salt rounds |
-| **Rate Limiting** | API Gateway limits 100 requests/minute per IP |
-| **Role-Based Access** | Admin vs User roles enforced via middleware |
-| **Simulated Payment** | Payment is simulated — no external API dependency |
-
----
-
-## Cloud-Native Design Patterns
-
-### High Availability (HA)
-
-Docker Compose demonstrates HA conceptually using `restart: on-failure` policies. Each service has health checks that verify uptime. In a real production environment, **Kubernetes** would provide full HA with pod scheduling, rolling updates, and multi-node failover.
-
-### Horizontal Scalability
-
-Each microservice is **stateless** — no sessions stored in memory. All state lives in MongoDB (persistent data), Redis (events), and JWT cookies (authentication). This means any instance can handle any request, enabling:
+Recommended for the full stack:
 
 ```bash
-docker-compose up --scale product-service=3
+npm run install:all
+npm run docker:up
 ```
 
-### Loose Coupling
+Then open:
 
-Services never access each other's databases directly. All cross-service data is exchanged through:
-- **REST APIs** for synchronous requests
-- **Redis events** for asynchronous notifications
+- Frontend: http://localhost:3000
+- API Gateway: http://localhost:8000
+- Gateway health: http://localhost:8000/api/health
 
-### Clean Architecture (Service Layer Pattern)
+## Access the Application
 
+- Local frontend: http://localhost:3000
+- Local API gateway: http://localhost:8000
+- Deployed frontend: https://frontend.thankfulmushroom-7e1e12d4.southeastasia.azurecontainerapps.io
+
+Stop the stack with:
+
+```bash
+npm run docker:down
 ```
-Route → Validation Middleware → Controller (HTTP only) → Service Layer (business logic) → Model (data)
+
+### Seed Data
+
+To populate the databases with sample users, products, and orders:
+
+```bash
+npm run data:import
 ```
 
----
+To clear the seeded data:
 
-## Ports & Services
+```bash
+npm run data:destroy
+```
 
-| Service | Port | Health Check |
-|---------|------|-------------|
-| Frontend | 3000 | — |
-| API Gateway | 8000 | `GET /api/health` |
-| User Service | 5001 | `GET /health` |
-| Product Service | 5002 | `GET /health` |
-| Order Service | 5003 | `GET /health` |
-| Redis | 6379 | `redis-cli ping` |
+## Running Services Without Docker
 
----
+If you want to run services individually for development, start the backend services first, then the gateway, and then the frontend.
 
-## Environment Variables
+```bash
+npm run install:all
+npm run dev:users
+npm run dev:products
+npm run dev:orders
+npm run dev:gateway
+```
 
-| Variable | Description | Used By |
-|----------|-------------|---------|
-| `NODE_ENV` | `development` or `production` | All |
-| `MONGO_URI` | MongoDB connection string | User, Product, Order |
-| `JWT_SECRET` | JWT signing secret | User, Product, Order |
-| `REDIS_URL` | Redis connection URL | Product, Order |
-| `SERVICE_NAME` | Service identifier for logs | All |
-| `USER_SERVICE_URL` | User service base URL | Product, Order, Gateway |
-| `PRODUCT_SERVICE_URL` | Product service base URL | Order, Gateway |
-| `ORDER_SERVICE_URL` | Order service base URL | Gateway |
+If you run the frontend outside Docker, make sure it points to the local gateway URL used in your dev setup.
 
----
+## Demo Credentials
 
-## API Endpoints
+- Admin: `admin@example.com` / `123456`
+- User accounts can be created from the registration page.
 
-### User Service (`/api/users`)
+## Frontend Scripts
 
-| Method | Endpoint | Auth | Description |
-|--------|----------|------|-------------|
-| POST | `/api/users` | Public | Register |
-| POST | `/api/users/auth` | Public | Login |
-| POST | `/api/users/logout` | Public | Logout |
-| GET | `/api/users/profile` | Private | Get profile |
-| PUT | `/api/users/profile` | Private | Update profile |
-| GET | `/api/users` | Admin | Get all users |
-| GET | `/api/users/:id` | Admin | Get user by ID |
-| PUT | `/api/users/:id` | Admin | Update user |
-| DELETE | `/api/users/:id` | Admin | Delete user |
+Inside `frontend/`:
 
-### Product Service (`/api/products`)
+```bash
+npm run install:all
+npm start
+npm run build
+```
 
-| Method | Endpoint | Auth | Description |
-|--------|----------|------|-------------|
-| GET | `/api/products` | Public | List products (paginated) |
-| GET | `/api/products/top` | Public | Top-rated products |
-| GET | `/api/products/:id` | Public | Product details |
-| POST | `/api/products` | Admin | Create product |
-| PUT | `/api/products/:id` | Admin | Update product |
-| POST | `/api/upload` | Admin | Upload image |
+## Backend Scripts
 
-### Order Service (`/api/orders`)
+From the repository root:
 
-| Method | Endpoint | Auth | Description |
-|--------|----------|------|-------------|
-| POST | `/api/orders` | Private | Create order |
-| GET | `/api/orders/mine` | Private | User's orders |
-| GET | `/api/orders/:id` | Private | Order details |
-| PUT | `/api/orders/:id/pay` | Private | Simulate payment |
-| PUT | `/api/orders/:id/deliver` | Admin | Mark delivered |
-| GET | `/api/orders` | Admin | All orders |
+```bash
+npm run dev:gateway
+npm run dev:users
+npm run dev:products
+npm run dev:orders
+npm run docker:up
+npm run docker:down
+```
 
----
+## CI / CD
+
+### CI workflow
+
+The GitHub Actions CI workflow builds Docker images for all services.
+
+- On `push` to `Dev1` or `main`, images are built and pushed to Azure Container Registry.
+- On `pull_request`, the workflow builds only and does not push images.
+- The workflow also supports manual `workflow_dispatch` runs.
+
+### CD workflow
+
+The deployment workflow updates Azure Container Apps after a successful CI run.
+
+- Deployments are restricted to `main` only.
+- The frontend revision gets a timestamped revision suffix so Azure creates a fresh revision on each deploy.
+
+## Local Development Notes
+
+- The frontend dev server uses `http://localhost:8000` for API requests in local development.
+- The production frontend build bakes the API URL at build time through `REACT_APP_API_URL`.
+- If you use Docker Compose locally, the frontend is served on port `3000` and the gateway on `8000`.
+
+## Security Notes
+
+- `.env` is ignored and should never be committed.
+- If a secret was ever exposed, rotate it immediately:
+  - MongoDB credentials
+  - JWT secret
+  - Redis key
+  - Cloudinary secret
+  - Azure credentials
+  - ACR password
+- The gateway uses HTTP-only cookies for auth.
+- Protected routes require the JWT cookie to be forwarded with requests.
+
+## Troubleshooting
+
+- If you see a cart crash with `invalid array length`, clear stale cart data in local storage and refresh.
+- If the frontend shows stale assets, hard refresh the browser after a new deploy.
+- If a protected admin action sends you to sign in, confirm the auth cookie is being sent and that your session is still valid.
 
 ## License
 
-MIT
+This project is intended for academic and demonstration use.
