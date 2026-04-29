@@ -25,27 +25,82 @@ SmartCarts is a cloud-native e-commerce application built with a MERN stack spli
 
 ## Architecture
 
-```text
-Browser
-  -> Frontend (React / nginx in production)
-  -> API Gateway (port 8000)
-      -> User Service (port 5001)
-      -> Product Service (port 5002)
-      -> Order Service (port 5003)
-  -> Redis (port 6379) for async events
-  -> MongoDB Atlas (separate DBs per service)
+```
+┌──────────────────────────────────────────────────────────┐
+│                     Browser / User                        │
+└───────────────────────┬──────────────────────────────────┘
+                        │
+                        ▼
+        ┌───────────────────────────────┐
+        │   Frontend (React)             │
+        │   Port 3000                    │
+        │   nginx in production          │
+        └───────────┬─────────────────────┘
+                    │ (Sends API Calls)
+                    ▼
+    ┌──────────────────────────────────┐
+    │   API Gateway (Port 8000)         │
+    │ ┌────────────────────────────────┤
+    │ │ • CORS                          │
+    │ │ • Rate Limiting                 │
+    │ │ • Auth Token Forwarding         │
+    │ │ • Request Logging               │
+    └─┼────────────────────────────────┘
+      │
+      ├──► /api/users ────────► User Service (Port 5001)
+      │                       - Login & Register
+      │                       - JWT Auth
+      │                       - Admin Checks
+      │
+      ├──► /api/products ────► Product Service (Port 5002)
+      │                       - Catalog & Search
+      │                       - Reviews & Ratings
+      │                       - Image Upload (Cloudinary)
+      │                       - Stock Management
+      │
+      └──► /api/orders ──────► Order Service (Port 5003)
+                              - Checkout
+                              - Order Management
+                              - Pricing Calculations
+                              - Publishes Events to Redis
+
+
+┌──────────────────────────────────────────────────────────┐
+│              Data & Message Layer                         │
+├──────────────────────────────────────────────────────────┤
+│                                                           │
+│  MongoDB Atlas (3 Separate Databases)                    │
+│  • user_db         → User service data                   │
+│  • product_db      → Product service data                │
+│  • order_db        → Order service data                  │
+│                                                           │
+│  Redis (Port 6379) → Message Bus (Pub/Sub)              │
+│  • ORDER_PLACED event → Product service updates stock   │
+│                                                           │
+│  Cloudinary → Image Storage & Delivery                  │
+│                                                           │
+└──────────────────────────────────────────────────────────┘
 ```
 
 ## Service Overview
 
-| Service | Port | Responsibility |
-| --- | --- | --- |
-| Frontend | 3000 | SmartCarts UI |
-| API Gateway | 8000 | Routes API traffic to backend services |
-| User Service | 5001 | Auth, users, roles, profile, admin checks |
-| Product Service | 5002 | Products, reviews, uploads, stock, top products |
-| Order Service | 5003 | Orders, totals, payment simulation, order history |
-| Redis | 6379 | Pub/Sub event bus |
+### Backend Services
+
+| Service | Port | Technology | Key Functions |
+|:---|:---:|:---|:---|
+| **User Service** | 5001 | Express.js + MongoDB | Authentication, JWT, profile mgmt, admin checks |
+| **Product Service** | 5002 | Express.js + MongoDB | Catalog, search, reviews, uploads, stock |
+| **Order Service** | 5003 | Express.js + MongoDB | Checkout, orders, pricing, totals |
+| **API Gateway** | 8000 | Express.js | Routes requests, CORS, auth forwarding, rate limit |
+
+### Frontend & Infrastructure
+
+| Component | Port | Technology | Purpose |
+|:---|:---:|:---|:---|
+| **Frontend** | 3000 | React + Redux Toolkit | User interface, cart, checkout, admin panel |
+| **Redis** | 6379 | Redis Pub/Sub | Async event messaging (ORDER_PLACED → stock updates) |
+| **MongoDB Atlas** | — | MongoDB | 3 databases: user_db, product_db, order_db |
+| **Cloudinary** | — | CDN | Image storage and delivery |
 
 ## Data & Integrations
 
@@ -108,7 +163,7 @@ This keeps the system easier to scale, easier to test, and safer to change servi
 
 ## Repository Structure
 
-```text
+
 .
 ├── frontend/                 # React app
 ├── services/
@@ -120,7 +175,7 @@ This keeps the system easier to scale, easier to test, and safer to change servi
 ├── docker-compose.yml        # Local container stack
 ├── example.env               # Example root env file
 └── README.md
-```
+
 
 ## Requirements
 
